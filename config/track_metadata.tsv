@@ -1,0 +1,4 @@
+UID	Source	Biosample	Assay	Target	BioRep	TechRep	Experiment	OutputType	FileFormat	Path
+ENCFF088RFQ	Roadmap	H9	Histone ChIP-seq	H2AK5ac	1, 2	1_2, 2_2	ENCSR333LVY	fold change over control	bigWig	resources/ENCFF088RFQ.bigWig
+ENCFF080CWG	Roadmap	H9	Histone ChIP-seq	H2BK12ac	1, 2	1_1, 2_3	ENCSR738BJJ	fold change over control	bigWig	resources/ENCFF080CWG.bigWig
+ENCFF410AXA	Roadmap	H9	Histone ChIP-seq	H2BK15ac	1, 2	1_1, 2_1	ENCSR734NCK	fold change over control	bigWig	resources/ENCFF410AXA.bigWig
