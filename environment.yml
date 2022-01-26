@@ -1,0 +1,24 @@
+dependencies:
+    - python=3.9
+    - pip
+    - cython
+    - numpy
+    - h5py
+    - ipython
+    - bioconda::bedtools
+    - bioconda::ucsc-bedgraphtobigwig
+    - bioconda::ucsc-bigwigtobedgraph
+    - pip:
+        - bioframe==0.2.*
+        - cooltools==0.4.*
+        - cooler
+        - datashader
+        - ipympl
+        - ipdb
+        - jupyterlab
+        - matplotlib
+        - pandas
+        - scikit-learn
+        - scipy
+        - seaborn
+        - tqdm

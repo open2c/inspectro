@@ -13,9 +13,9 @@ import numpy as np
 import pandas as pd
 import h5py
 
-from _common import split_chroms, make_chromarms, fetch_binned, assign_arms, assign_centel
-from _eigdecomp import eig_trans
-from _clustering import kmeans_sm, relabel_clusters
+from utils._common import split_chroms, make_chromarms, fetch_binned, assign_arms, assign_centel
+from utils._eigdecomp import eig_trans
+from utils._clustering import kmeans_sm, relabel_clusters
 
 shell.prefix("set -euxo pipefail; ")
 configfile: "config.yaml"
