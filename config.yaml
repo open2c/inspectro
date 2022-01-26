@@ -1,7 +1,5 @@
 project_folder: 'results/'
 
-fasta_path: /net/levsha/share/lab/genomes/hg38/hg38.fa
-
 params:
   binsize: 50000
   n_eigs: 128
@@ -10,12 +8,15 @@ params:
 conditions:
   - H9
 
-# H9 with targeted integration of GFP-tagged MYL2
 cooler_paths:
-  H9: /net/levsha/scratch/4dn/GRCh38/4DNFIT5YVTLO.mcool
+  H9: resources/4DNFIT5YVTLO.mcool
 
 blacklist_paths:
-  H9: /net/levsha/share/nezar/heterochrom2019/h9/h9.blacklist.bed
+  H9: resources/h9.blacklist.bed
+
+fasta_path: resources/hg38.fa
+
+track_metadata_path: config/track_metadata.tsv
 
 tracks:
   cluster:
@@ -34,117 +35,29 @@ tracks:
       cmap: "Greys"
       vmin: 0
       vmax: 149043529
-  H2AK5ac: 
-    uid: ENCFF088RFQ
-    type: scalar
-  H2BK12ac: 
-    uid: ENCFF080CWG
-    type: scalar
-  H2BK15ac: 
-    uid: ENCFF410AXA
-    type: scalar
-  H2BK5ac: 
-    uid: ENCFF045DZK
-    type: scalar
-  H3K14ac: 
-    uid: ENCFF079HBG
-    type: scalar
-  H3K18ac: 
-    uid: ENCFF783SYJ
-    type: scalar
-  H3K23ac: 
-    uid: ENCFF349GEK
-    type: scalar
-  H3K23me2: 
-    uid: ENCFF670CWD
-    type: scalar
-  H3K27ac: 
-    uid: ENCFF429TIE
-    type: scalar
-  H3K27me3: 
-    uid: ENCFF342DVJ
-    type: scalar
-  H3K36me3: 
-    uid: ENCFF739CKD
-    type: scalar
-  H3K4ac: 
-    uid: ENCFF542IUH
-    type: scalar
-  H3K4me1: 
-    uid: ENCFF276TJN
-    type: scalar
-  H3K4me2: 
-    uid: ENCFF580GDA
-    type: scalar
-  H3K4me3: 
-    uid: ENCFF226VQO
-    type: scalar
-  H3K56ac: 
-    uid: ENCFF786HHY
-    type: scalar
-  H3K79me1: 
-    uid: ENCFF444EZZ
-    type: scalar
-  H3K79me2: 
-    uid: ENCFF974LDP
-    type: scalar
-  H3K9ac: 
-    uid: ENCFF936ETS
-    type: scalar
-  H4K5ac: 
-    uid: ENCFF520GRC
-    type: scalar
-  H4K8ac: 
-    uid: ENCFF796EXK
-    type: scalar
-  H4K91ac: 
-    uid: ENCFF071DVW
-    type: scalar
-  mint.H3K27ac.1: 
-    uid: ENCFF293UPM
-    type: scalar
-  mint.H3K27ac.2: 
-    uid: ENCFF988WEQ
-    type: scalar
-  mint.H3K27ac.3: 
-    uid: ENCFF803QZK
-    type: scalar
-  mint.H3K27me3.1: 
-    uid: ENCFF077DRH
-    type: scalar
-  mint.H3K27me3.2: 
-    uid: ENCFF130PLP
-    type: scalar
-  mint.H3K36me3.1: 
-    uid: ENCFF565AYJ
-    type: scalar
-  mint.H3K36me3.2: 
-    uid: ENCFF827BYV
-    type: scalar
-  mint.H3K36me3.3: 
-    uid: ENCFF255XUR
-    type: scalar
-  mint.H3K4me1.1: 
-    uid: ENCFF142KLG
-    type: scalar
-  mint.H3K4me1.2: 
-    uid: ENCFF883HRN
-    type: scalar
-  mint.H3K4me1.3: 
-    uid: ENCFF398KYZ
-    type: scalar
-  mint.H3K4me3.1: 
-    uid: ENCFF179HBV
-    type: scalar
-  mint.H3K4me3.2: 
-    uid: ENCFF462TXF
-    type: scalar
-  mint.H3K9me3.1: 
-    uid: ENCFF739YTV
-    type: scalar
-  mint.H3K9me3.2: 
-    uid: ENCFF891UKM
-    type: scalar
-  mint.H3K9me3.3: 
-    uid: ENCFF102IQJ
-    type: scalar
+  H2AK5ac:
+    uid: "ENCFF088RFQ"
+    type: "scalar"
+  H2AK5ac:
+    uid: "ENCFF080CWG"
+    type: "scalar"
+  H2BK15ac:
+    uid: "ENCFF410AXA"
+    type: "scalar"
+
+heatmap_groups:
+  required:
+    - centel_abs
+    - GC
+  chip:
+    - H2AK5ac
+    - H2AK5ac
+    - H2BK15ac
+
+scatter_groups:
+  all:
+    - centel_abs
+    - GC
+    - H2AK5ac
+    - H2AK5ac
+    - H2BK15ac

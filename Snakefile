@@ -13,7 +13,9 @@ import numpy as np
 import pandas as pd
 import h5py
 
-from utils._common import split_chroms, make_chromarms, fetch_binned, assign_arms, assign_centel
+from utils._common import (
+    split_chroms, make_chromarms, fetch_binned, assign_arms, assign_centel
+)
 from utils._eigdecomp import eig_trans
 from utils._clustering import kmeans_sm, relabel_clusters
 
@@ -53,7 +55,6 @@ rule make_bintable:
         binsize = params.binsize
         fa_records = bioframe.load_fasta(config["fasta_path"])
         centros = bioframe.fetch_centromeres('hg38').set_index('chrom')
-        short_arms = ['chr13p', 'chr14p', 'chr15p', 'chr21p', 'chr22p', 'chrYp', 'chrYq']
 
         arms = make_chromarms(CHROMSIZES, centros['mid'], binsize)
         arms.to_csv(
@@ -131,7 +132,8 @@ rule eigdecomp:
         clr = cooler.Cooler(path + f'::resolutions/{binsize}')
 
         partition = np.r_[
-            [clr.offset(chrom) for chrom in chromosomes], clr.extent(chromosomes[-1])[1]
+            [clr.offset(chrom) for chrom in chromosomes],
+            clr.extent(chromosomes[-1])[1]
         ]
 
         eigval_df, eigvec_df = eig_trans(
@@ -282,10 +284,12 @@ rule agg_bigwigs:
         binsize = config['params']['binsize']
     run:
         binsize = params.binsize
-        ARMS = bioframe.read_table(f'hg38.chromarms.{binsize}.bed', schema='bed4')
+        ARMS = bioframe.read_table(
+            f'hg38.chromarms.{binsize}.bed', schema='bed4'
+        )
         ARMNAMES = ARMS['name'].tolist()
-        meta = pd.read_table('/net/levsha/share/nezar/heterochrom2019/h9/masterlist.tsv')
-        paths = meta.set_index('Accession')['Path']
+        meta = pd.read_table(config['track_metadata_path'])
+        paths = meta.set_index('UID')['Path']
 
         bins = bioframe.binnify(CHROMSIZES, binsize)
         h5opts = dict(compression='gzip', compression_opts=6)
@@ -296,40 +300,20 @@ rule agg_bigwigs:
             f.create_dataset('end', data=bins['end'].values, **h5opts)
 
             for ix, row in meta.iterrows():
-                if row['Accession'] in f:
+                if row['UID'] in f:
                     continue
 
                 if row['FileFormat'] == 'bigWig':
                     with get_reusable_executor(26) as pool:
-                        acc = row['Accession']
+                        acc = row['UID']
                         x = fetch_binned(
                             paths[acc], CHROMSIZES, CHROMOSOMES, BINSIZE, pool.map
                         )
                         f.create_dataset(acc, data=x, **h5opts)
 
                 elif row['FileFormat'] == 'bedGraph':
-                    acc = row['Accession']
+                    acc = row['UID']
                     df = bioframe.read_table(paths[acc], schema='bedGraph')
-                    ov = bioframe.overlap(
-                        bins,
-                        df,
-                        how='left',
-                        return_overlap=True,
-                        keep_order=True,
-                        suffixes=('', '_')
-                    )
-                    ov['overlap'] = ov['overlap_end'] - ov['overlap_start']
-                    ov['score'] = ov['value_'] * ov['overlap']
-                    out = ov.groupby(['chrom', 'start', 'end'], sort=False).agg(**{
-                        'score': ('score', 'sum')
-                    }).reset_index()
-                    out['score'] /= (out['end'] - out['start'])
-                    x = out['score'].values
-                    f.create_dataset(acc, data=x, **h5opts)
-
-                elif row['FileFormat'] == 'bedGraph-tsv':
-                    acc = row['Accession']
-                    df = bioframe.read_table(paths[acc], schema='bedGraph', header=0)
                     ov = bioframe.overlap(
                         bins,
                         df,
@@ -401,59 +385,16 @@ rule heatmap:
         # Ordering and coarsening
         sort_by = 'centel'
         coarse_factor = 32
-        blocks = {
-            'genome': [
-                'centel_abs',
-                'GC',
-            ],
-            'chip': [
-                "H2AK5ac",
-                "H2BK12ac",
-                "H2BK15ac",
-                "H2BK5ac",
-                "H3K14ac",
-                "H3K18ac",
-                "H3K23ac",
-                "H3K23me2",
-                "H3K27ac",
-                "H3K27me3",
-                "H3K36me3",
-                "H3K4ac",
-                "H3K4me1",
-                "H3K4me2",
-                "H3K4me3",
-                "H3K56ac",
-                "H3K79me1",
-                "H3K79me2",
-                "H3K9ac",
-                "H4K5ac",
-                "H4K8ac",
-                "H4K91ac",
-                "mint.H3K27ac.1",
-                "mint.H3K27ac.2",
-                "mint.H3K27ac.3",
-                "mint.H3K27me3.1",
-                "mint.H3K27me3.2",
-                "mint.H3K36me3.1",
-                "mint.H3K36me3.2",
-                "mint.H3K36me3.3",
-                "mint.H3K4me1.1",
-                "mint.H3K4me1.2",
-                "mint.H3K4me1.3",
-                "mint.H3K4me3.1",
-                "mint.H3K4me3.2",
-                "mint.H3K9me3.1",
-                "mint.H3K9me3.2",
-                "mint.H3K9me3.3",
-            ],
-        }
+        blocks = config["heatmap_groups"]
         n_tracks = sum(len(block) for block in blocks.values())
         labels = klust[klust_col].values
 
         if sort_by == 'centel':
             idx = np.lexsort([bins['centel_abs'].values, labels])
-        elif sort_by == 'centel-chmm':
-            idx = np.lexsort([bins['centel_abs'].values, klust['chromhmm'].values, labels])
+        # elif sort_by == 'centel-chmm':
+        #     idx = np.lexsort(
+        #         [bins['centel_abs'].values, klust['chromhmm'].values, labels]
+        #     )
         else:
             raise ValueError(sort_by)
 
@@ -503,11 +444,16 @@ rule heatmap:
             # 'vmax': 1,
         }
         tracks = bins.copy()
-        for i, name in enumerate(blocks['genome'], level):
+        for i, name in enumerate(blocks['required'], level):
             ax = plt.subplot(gs[i], sharex=ax1)
 
             track = tracks[name].loc[idx]
-            X = numutils.coarsen(np.nanmean, np.array([track.values]), {1: coarse_factor}, trim_excess=True)
+            X = numutils.coarsen(
+                np.nanmean,
+                np.array([track.values]),
+                {1: coarse_factor},
+                trim_excess=True
+            )
             # X = np.array([track.values])
 
             im = ax.matshow(
@@ -528,32 +474,41 @@ rule heatmap:
             level += 1
 
         f = h5py.File(f'tracks.{binsize}.h5', 'r')
-        for i, name in enumerate(blocks['chip'], level):
-            ax = plt.subplot(gs[i], sharex=ax1)
+        for block_name in blocks.keys():
+            if block_name == 'required':
+                continue
+            for i, name in enumerate(blocks[block_name], level):
+                ax = plt.subplot(gs[i], sharex=ax1)
 
-            uid = config["tracks"][name]["uid"]
-            track = f[uid][:][idx]
-            X = numutils.coarsen(np.nanmean, np.array([track]), {1: coarse_factor}, trim_excess=True)
-            # X = np.array([track.values])
+                uid = config["tracks"][name]["uid"]
+                track = f[uid][:][idx]
+                X = numutils.coarsen(
+                    np.nanmean,
+                    np.array([track]),
+                    {1: coarse_factor}, trim_excess=True
+                )
 
-            im = ax.matshow(
-                X,
-                rasterized=True,
-                extent=extent,
-                origin='lower',
-                **config["tracks"][name].get("options", options_default)
-            )
-            ax.set_aspect('auto')
-            ax.xaxis.set_visible(False)
-            ax.set_xlim(lo-0.5, hi-0.5)
-            ax.set_ylim(-0.5, 0.5)
-            ax.set_yticks([0])
-            ax.set_yticklabels([name])
-            plt.vlines(lines, -0.5, 0.5, lw=1, color='k')
-            # plt.colorbar(im)
-            level += 1
+                im = ax.matshow(
+                    X,
+                    rasterized=True,
+                    extent=extent,
+                    origin='lower',
+                    **config["tracks"][name].get("options", options_default)
+                )
+                ax.set_aspect('auto')
+                ax.xaxis.set_visible(False)
+                ax.set_xlim(lo-0.5, hi-0.5)
+                ax.set_ylim(-0.5, 0.5)
+                ax.set_yticks([0])
+                ax.set_yticklabels([name])
+                plt.vlines(lines, -0.5, 0.5, lw=1, color='k')
+                # plt.colorbar(im)
+                level += 1
 
-        plt.savefig(f"figs/{condition}.{binsize}.E0-E{n_eigs}.kmeans_sm{n_clusters}.heatmap.pdf", bbox_inches='tight')
+        plt.savefig(
+            f"figs/{condition}.{binsize}.E0-E{n_eigs}.kmeans_sm{n_clusters}.heatmap.pdf",
+            bbox_inches='tight'
+        )
 
 
 rule scatters:
@@ -622,52 +577,7 @@ rule scatters:
         klust_col = f'kmeans_sm{n_clusters}'
         bins["cluster"] = klust[klust_col]
     
-        PANELS = {
-            'clusters': [
-                'cluster',
-                'chrom',
-                'centel_abs',
-                'GC',
-                "H2AK5ac",
-                "H2BK12ac",
-                "H2BK15ac",
-                "H2BK5ac",
-                "H3K14ac",
-                "H3K18ac",
-                "H3K23ac",
-                "H3K23me2",
-                "H3K27ac",
-                "H3K27me3",
-                "H3K36me3",
-                "H3K4ac",
-                "H3K4me1",
-                "H3K4me2",
-                "H3K4me3",
-                "H3K56ac",
-                "H3K79me1",
-                "H3K79me2",
-                "H3K9ac",
-                "H4K5ac",
-                "H4K8ac",
-                "H4K91ac",
-                "mint.H3K27ac.1",
-                "mint.H3K27ac.2",
-                "mint.H3K27ac.3",
-                "mint.H3K27me3.1",
-                "mint.H3K27me3.2",
-                "mint.H3K36me3.1",
-                "mint.H3K36me3.2",
-                "mint.H3K36me3.3",
-                "mint.H3K4me1.1",
-                "mint.H3K4me1.2",
-                "mint.H3K4me1.3",
-                "mint.H3K4me3.1",
-                "mint.H3K4me3.2",
-                "mint.H3K9me3.1",
-                "mint.H3K9me3.2",
-                "mint.H3K9me3.3",
-            ],
-        }
+        PANELS = config["scatter_groups"]
         for panel_name, track_list in tqdm(PANELS.items()):
 
             print(panel_name)
@@ -731,12 +641,19 @@ rule scatters:
                     ax.set_title(name);
                     ax.axvline(0, c='k', lw=0.5, ls='--', alpha=0.5);
                     ax.axhline(0, c='k', lw=0.5, ls='--', alpha=0.5);
-                    cax.legend(handles=da.get_legend_elements(), fontsize=6, borderaxespad=0, loc='upper left');
+                    cax.legend(
+                        handles=da.get_legend_elements(),
+                        fontsize=6,
+                        borderaxespad=0,
+                        loc='upper left'
+                    );
                     cax.axis("off");
                 else:
                     kwargs['ax'] = ax
                     kwargs.setdefault('norm', 'linear')
-                    kwargs.setdefault('cmap', 'coolwarm' if track_type == 'divergent' else 'Oranges')
+                    kwargs.setdefault('cmap',
+                        'coolwarm' if track_type == 'divergent' else 'Oranges'
+                    )
                     kwargs.setdefault('vmin', 0)
                     if 'vmax' not in kwargs:
                         vopt = min(np.percentile(np.max(np.abs(track['data'])), 95), 4)
@@ -759,4 +676,8 @@ rule scatters:
                     plt.colorbar(da, cax=cax);
 
 
-            plt.savefig(f"figs/{condition}.{binsize}.E0-E{n_eigs}.kmeans_sm{n_clusters}.scatters.pdf", bbox_inches='tight')
+            plt.savefig(
+                f"figs/{condition}.{binsize}.E0-E{n_eigs}.kmeans_sm{n_clusters}.scatters.pdf",
+                bbox_inches='tight'
+            )
+
