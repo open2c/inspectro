@@ -16,8 +16,12 @@ dependencies:
     - ipympl
     - ipdb
     - jupyterlab
+    - loky
     - matplotlib
     - pandas
+    - pyarrow
+    - pybbi
+    - pysam
     - scikit-learn
     - scipy
     - seaborn
