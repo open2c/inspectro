@@ -18,6 +18,8 @@ from utils._common import (
 )
 from utils._eigdecomp import eig_trans
 from utils._clustering import kmeans_sm, relabel_clusters
+from utils._df2multivec import to_multivec
+
 
 shell.prefix("set -euxo pipefail; ")
 configfile: "config.yaml"
@@ -153,8 +155,6 @@ rule eigdecomp:
             f"{condition}.{binsize}.E0-E{n_eigs}.trans.eigvecs.pq"
         )
 
-        # TODO: make multivec
-
         # Plot the spectrum
         import matplotlib as mpl
         mpl.use("Agg")
@@ -175,6 +175,43 @@ rule eigdecomp:
         sns.kdeplot(eigval_df['val'], bw_adjust=0.5)
         plt.xlim(-1, 1)
         plt.savefig(f"figs/{condition}.{binsize}.E0-E{n_eigs}.trans.eigvals.pdf")
+
+
+rule make_multivec:
+    input:
+        "{condition}.{binsize}.E0-E{n_eigs}.trans.eigvals.pq",
+        "{condition}.{binsize}.E0-E{n_eigs}.trans.eigvecs.pq",
+    output:
+        "{condition}.{binsize}.E0-E{n_eigs_multivec}.trans.eigvecs.mv5"
+    params:
+        condition = lambda wc: wc.condition,
+        binsize = lambda wc: int(wc.binsize),
+        n_eigs = lambda wc: int(wc.n_eigs),
+        n_eigs_multivec = lambda wc: int(wc.n_eigs_multivec)
+    run:
+        condition = params.condition
+        binsize = params.binsize
+        n_eigs = params.n_eigs
+        n_eigs_multivec = params.n_eigs_multivec
+
+        eigvals = pd.read_parquet(
+            f"{condition}.{binsize}.E0-E{n_eigs}.trans.eigvals.pq"
+        )
+        eigvecs = pd.read_parquet(
+            f"{condition}.{binsize}.E0-E{n_eigs}.trans.eigvecs.pq"
+        )
+
+        sqrt_lam = np.sqrt(np.abs(eigvals.set_index('eig')['val'].values))
+        eigvecs.iloc[:, 3:] = (
+            eigvecs.iloc[:, 3:] * sqrt_lam[np.newaxis, :]
+        )
+        to_multivec(
+            f"{condition}.{binsize}.E0-E{n_eigs_multivec}.trans.eigvecs.mv5",
+            eigvecs,
+            [f'E{i}' for i in range(1, n_eigs_multivec)],
+            base_res=binsize,
+            chromsizes=CHROMSIZES,
+        )
 
 
 rule clustering:
