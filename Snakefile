@@ -39,6 +39,7 @@ binsize = config["params"]["binsize"]
 n_clusters_list = config["params"]["n_clusters"]
 n_eigs = config["params"]["n_eigs"]
 n_eigs_multivec = 32
+n_eigs_heatmap = 10
 
 
 rule default:
@@ -114,7 +115,6 @@ rule eigdecomp:
         sample = "{sample}",
     run:
         sample = params.sample
-        n_eigs_display = 32
         chromosomes = CHROMOSOMES_FOR_CLUSTERING
 
         # has a header (chrom, start, end, GC)
@@ -159,6 +159,7 @@ rule eigdecomp:
         eigvec_df.to_parquet(output.eigvecs)
 
         # Plot the spectrum
+        n_eigs_display = min(32, n_eigs)
         plot_spectrum(
             eigval_df,
             n_eigs_display,
@@ -240,22 +241,6 @@ rule clustering:
             out[colname] = new_labels
             out[colname + '_order'] = bin_ranks
 
-        if not positive_eigs:
-            if keep_first:
-                elo = 'E0'
-                ehi = f'E{n_components - 1}'
-            else:
-                elo = 'E1'
-                ehi = f'E{n_components}'
-            which = f"{elo}-{ehi}"
-        else:
-            which = f"positive{n_components}"
-
-        if weight_by_eigval:
-            eignorm = 'eignorm_sqrt'
-        else:
-            eignorm = 'eignorm_unity'
-
         out.to_csv(output.clusters, sep='\t', index=False)
 
 
@@ -332,16 +317,15 @@ rule heatmap:
         n_clusters = int("{n_clusters}"),
     run:
         n_clusters = params.n_clusters
-        n_eigs_display = 10
         chromosomes = CHROMOSOMES_FOR_CLUSTERING
         sort_by = 'centel'
         norm = 'sqrt'
 
         eigs = pd.read_parquet(input.eigvecs)
         eigvals = pd.read_parquet(input.eigvals).set_index('eig')
-        sqrt_lam = np.sqrt(np.abs(eigvals.loc['E1':f'E{n_eigs_display}'].values))
+        sqrt_lam = np.sqrt(np.abs(eigvals.loc['E1':f'E{n_eigs_heatmap}'].values))
         if norm == 'sqrt':
-            eigs.loc[:, 'E1':f'E{n_eigs_display}'] *= sqrt_lam[np.newaxis, :]
+            eigs.loc[:, 'E1':f'E{n_eigs_heatmap}'] *= sqrt_lam[np.newaxis, :]
         eigs = eigs[eigs['chrom'].isin(chromosomes)].copy()
 
         bins = pd.read_parquet(input.bins)
@@ -365,7 +349,7 @@ rule heatmap:
 
         plot_heatmap(
             idx,
-            eigs['E1':f'E{n_eigs_display}'],
+            eigs['E1':f'E{n_eigs_heatmap}'],
             bins,
             trackconfs=config["tracks"],
             blocks=config["heatmap_groups"],
@@ -412,4 +396,3 @@ rule scatters:
             panels=config["scatter_groups"],
         )
         plt.savefig(output.scatter_pdf, bbox_inches='tight')
-
