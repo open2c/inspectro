@@ -25,4 +25,5 @@ dependencies:
     - scikit-learn
     - scipy
     - seaborn
+    - snakemake
     - tqdm
