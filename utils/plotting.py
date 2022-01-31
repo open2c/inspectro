@@ -28,7 +28,7 @@ def plot_heatmap(
     idx,
     eigs,
     bins,
-    tracks,
+    trackconfs,
     blocks,
     coarse_factor=32,
     options_default=None
@@ -82,6 +82,7 @@ def plot_heatmap(
     # Other blocks
     for block_name in blocks.keys():
         for i, track_name in enumerate(blocks[block_name], level):
+            track_conf = trackconfs[track_name]
             ax = plt.subplot(gs[i], sharex=ax1)
 
             x = bins[track_name].values[idx]
@@ -110,10 +111,7 @@ def plot_heatmap(
     return fig
 
 
-def plot_scatters(eigs, bins, tracks):
-    n_clusters = params.n_clusters
-    tracks = config["tracks"]
-
+def plot_scatters(eigs, bins, trackconfs, panels):
     ncols = 4
     xvar = 'E1'
     yvar = 'E2'
@@ -130,8 +128,6 @@ def plot_scatters(eigs, bins, tracks):
     }
 
     for panel_name, track_list in panels.items():
-
-        print(panel_name)
 
         nrows = int(np.ceil((len(track_list) + 1)/ncols))
         gridshape = (nrows, ncols)
@@ -167,22 +163,23 @@ def plot_scatters(eigs, bins, tracks):
 
         # Other signals
         for i, track_name in enumerate(track_list, 1):
-            print(track_name)
             ax = grid[i]
             cax = grid.cbar_axes[i]
-            track_conf = tracks[track_name]
-            track_conf["data"] = bins[track_name].values
 
+            track_conf = trackconfs[track_name]
             track_type = track_conf.get('type', 'scalar')
             kwargs = track_conf.get('options', {})
 
             if track_type == 'category':
+                df = eigs.assign(
+                    z=bins[track_name].astype('category')
+                )
                 kwargs['ax'] = ax
                 if 'facecolor' in kwargs:
                     ax.set_facecolor(kwargs.pop('facecolor'))
                 da = dsshow(
-                    eigs.assign(cat=track_conf['data'].astype('category')),
-                    aggregator=ds.count_cat('cat'),
+                    df,
+                    aggregator=ds.count_cat('z'),
                     **kwargs,
                     **ds_options
                 )
@@ -197,6 +194,7 @@ def plot_scatters(eigs, bins, tracks):
                 );
                 cax.axis("off");
             else:
+                df = eigs.assign(z=bins[track_name])
                 kwargs['ax'] = ax
                 kwargs.setdefault('norm', 'linear')
                 kwargs.setdefault('cmap',
@@ -204,7 +202,7 @@ def plot_scatters(eigs, bins, tracks):
                 )
                 kwargs.setdefault('vmin', 0)
                 if 'vmax' not in kwargs:
-                    vopt = min(np.percentile(np.max(np.abs(track_conf['data'])), 95), 4)
+                    vopt = min(np.percentile(np.max(np.abs(x)), 95), 4)
                     if track_type == 'divergent':
                         kwargs['vmin'] = -vopt
                     else:
@@ -213,7 +211,7 @@ def plot_scatters(eigs, bins, tracks):
                 if 'facecolor' in kwargs:
                     ax.set_facecolor(kwargs.pop('facecolor'))
                 da = dsshow(
-                    eigs.assign(z=track_conf['data']),
+                    df,
                     aggregator=ds.mean('z'),
                     **kwargs,
                     **ds_options

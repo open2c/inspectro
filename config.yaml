@@ -5,18 +5,16 @@ params:
   n_eigs: 128
   n_clusters: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 20, 32, 64]
 
-conditions:
-  - H9
+assembly:
+  name: hg38
+  fasta_path: resources/hg38.fa
 
-cooler_paths:
-  H9: resources/4DNFIT5YVTLO.mcool
+samples:
+  H9:
+    cooler_path: resources/4DNFIT5YVTLO.mcool
+    blacklist_path: resources/h9.blacklist.bed
 
-blacklist_paths:
-  H9: resources/h9.blacklist.bed
-
-fasta_path: resources/hg38.fa
-
-track_metadata_path: config/track_metadata.tsv
+bigwig_metadata_path: config/track_metadata.tsv
 
 tracks:
   cluster:
@@ -36,13 +34,10 @@ tracks:
       vmin: 0
       vmax: 149043529
   H2AK5ac:
-    uid: "ENCFF088RFQ"
     type: "scalar"
-  H2AK5ac:
-    uid: "ENCFF080CWG"
+  H2BK12ac:
     type: "scalar"
   H2BK15ac:
-    uid: "ENCFF410AXA"
     type: "scalar"
 
 heatmap_groups:
@@ -51,7 +46,7 @@ heatmap_groups:
     - GC
   chip:
     - H2AK5ac
-    - H2AK5ac
+    - H2BK12ac
     - H2BK15ac
 
 scatter_groups:
@@ -59,5 +54,5 @@ scatter_groups:
     - centel_abs
     - GC
     - H2AK5ac
-    - H2AK5ac
+    - H2BK12ac
     - H2BK15ac
