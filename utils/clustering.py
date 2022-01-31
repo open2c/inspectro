@@ -110,12 +110,12 @@ def kmeans_sm(eigvals, eigvecs, n_clusters, n_components=None, weight_by_eigval=
         n_init=100,
         max_iter=10000,
         tol=0.00001,
-        precompute_distances='auto',
-        verbose=0,
+        # precompute_distances='auto',
+        # verbose=0,
         random_state=42,
         copy_x=True,
-        n_jobs=32,
-        algorithm='auto',
+        # n_jobs=32,
+        # algorithm='auto',
     )
 
     x, mask = _extract_eigs(
