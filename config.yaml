@@ -1,20 +1,46 @@
+#####
+# Spectral clustering parameters
+#####
 params:
+  # Resolution of contact map to use.
   binsize: 50000
+  # Total number of eigenvectors to compute.
   n_eigs: 128
+  # Number of clusters K for K-means runs.
   n_clusters: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 20, 32, 64]
 
+
+#####
+# Genome and Hi-C data
+#####
 assembly:
   name: hg38
   fasta_path: ../resources/hg38.fa
 
 samples:
+  # Unique sample name
   H9:
+    # Path to an mcool file
     cooler_path: ../resources/4DNFIT5YVTLO.mcool
+    # Path to a BED3 file marking interchromosomal translocations and other 
+    # trans artifacts that interfere with clustering.
     blacklist_path: ../resources/h9.blacklist.bed
 
-bigwig_metadata_path: ../config/track_metadata.tsv
 
+#####
+# Track configuration
+#####
+# List of binned quantitative genomic tracks to use for visualization of 
+# eigenspace and clustering.
+# Each track has a type:
+#   * category: categorical data
+#   * scalar: quantitative
+#   * divergent: quantitative, but the default colorscale will be centered at 0.
+# Colormapping options for matplotlib/datashader can be specified.
+# Each track type has associated default options which can be overridden.
 tracks:
+
+  # These are some of the default tracks generated during the pipeline.
   cluster:
     type: "category"
   chrom:
@@ -31,6 +57,10 @@ tracks:
       cmap: "Greys"
       vmin: 0
       vmax: 149043529
+
+  # Specify additional tracks to be generated from bigwig files.
+  # Their display options can be customized here. 
+  # Default is to assume type: "scalar".
   H2AK5ac:
     type: "scalar"
   H2BK12ac:
@@ -38,6 +68,14 @@ tracks:
   H2BK15ac:
     type: "scalar"
 
+# Metadata file specifying additional bigwig tracks. See README.
+# The aggregated tracks will be stored in an HDF5 file.
+bigwig_metadata_path: ../config/track_metadata.tsv
+
+
+#####
+# Configure which tracks to use in each visualization.
+#####
 heatmap_groups:
   group1:
     - centel_abs

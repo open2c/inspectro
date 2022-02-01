@@ -10,7 +10,7 @@ Snakemake workflow for the unsupervised method presented in [Spracklin, Abdennur
 1. Place supplementary bigwig file information in `config/track_metadata.tsv` to include in graphical outputs. Must be tab-delimited, including header. Must have columns:
 
 * `Name`: a display name
-* `ID`: a unique identifier to use in the database (can be the same as Name)
+* `ID`: a unique identifier to use in the database (can be the same as `Name`)
 * `FileFormat`: must be the string `bigWig`
 * `Path`: a local path to the file
 
@@ -19,7 +19,7 @@ Snakemake workflow for the unsupervised method presented in [Spracklin, Abdennur
 3. Run:
 
 ```sh
-# Generate pre-aggregated supplementary bigwig tracks if provided
+# Generate pre-aggregated supplementary bigwig tracks if provided.
 $ snakemake make_track_db --force --cores all
 
 # Run the pipeline
