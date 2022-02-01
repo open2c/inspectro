@@ -41,18 +41,28 @@ n_eigs_multivec = 32
 n_eigs_heatmap = 10
 
 
-rule default:
-    input:
-        [
+def generate_targets(wc):
+    targets = []
+    for sample in samples:
+        targets.append(
             f"{sample}.{binsize}.E1-E{n_eigs}.kmeans_sm.tsv"
-            for sample in samples
-        ] + [
-            f"figs/{sample}.{binsize}.E1-E{n_eigs}.kmeans_sm8.heatmap.pdf"
-            for sample in samples
-        ] + [
-            f"figs/{sample}.{binsize}.E1-E{n_eigs}.kmeans_sm8.scatters.pdf"
-            for sample in samples
-        ]
+        )
+        targets.append(
+            f"figs/{sample}.{binsize}.E0-E{n_eigs}.trans.eigvals.pdf"
+        )
+        targets.extend(expand(
+            f"figs/{sample}.{binsize}.E1-E{n_eigs}.kmeans_sm{{n}}.heatmap.pdf",
+            n=n_clusters_list,
+        ))
+        targets.extend(expand(
+            f"figs/{sample}.{binsize}.E1-E{n_eigs}.kmeans_sm{{n}}.scatters.pdf",
+            n=[n for n in n_clusters_list if n < 20],
+        ))
+    return targets
+
+
+rule default:
+    input: generate_targets
 
 
 rule make_bintable:
@@ -134,7 +144,7 @@ rule eigdecomp:
             )
         ref_track = ref_track[ref_track['chrom'].isin(chromosomes)]
 
-        path = config["samples"][sample]["cooler_path"].strip()
+        path = config["samples"][sample]["cooler_path"]
         clr = cooler.Cooler(f'{path}::resolutions/{binsize}')
 
         partition = np.r_[
@@ -341,18 +351,18 @@ rule heatmap:
         eigvecs = eigvecs[eigvecs['chrom'].isin(chromosomes)].copy()
 
         bins = pd.read_parquet(input.bins)
+        clusters = pd.read_table(input.clusters)
+        bins["cluster"] = clusters[f'kmeans_sm{n_clusters}']
         track_db_path = f"tracks.{assembly}.{binsize}.h5"
         if op.exists(track_db_path):
             meta = pd.read_table(config['bigwig_metadata_path']).set_index("Name")
             with h5py.File(track_db_path, 'r') as db:
-                for group in config["heatmap_groups"].values():
+                for group in config["scatter_groups"].values():
                     for track_name in group:
-                        uid = meta["ID"].get(track_name, track_name)
-                        bins[track_name] = db[uid][:]
-        bins = bins[bins['chrom'].isin(chromosomes)]
-        klust = pd.read_table(input.clusters)
-        klust = klust[klust['chrom'].isin(chromosomes)].copy()
-        bins["cluster"] = klust[f'kmeans_sm{n_clusters}']
+                        if track_name not in bins.columns:
+                            uid = meta["ID"].get(track_name, track_name)
+                            bins[track_name] = db[uid][:]
+        bins = bins[bins['chrom'].isin(chromosomes)].copy()
 
         if sort_by == 'centel':
             idx = np.lexsort([
@@ -396,18 +406,18 @@ rule scatters:
         # )
 
         bins = pd.read_parquet(input.bins)
+        clusters = pd.read_table(input.clusters)
+        bins["cluster"] = clusters[f'kmeans_sm{n_clusters}']
         track_db_path = f"tracks.{assembly}.{binsize}.h5"
         if op.exists(track_db_path):
             meta = pd.read_table(config['bigwig_metadata_path']).set_index("Name")
             with h5py.File(track_db_path, 'r') as db:
                 for group in config["scatter_groups"].values():
                     for track_name in group:
-                        uid = meta["ID"].get(track_name, track_name)
-                        bins[track_name] = db[uid][:]
-        bins = bins[bins['chrom'].isin(chromosomes)]
-        klust = pd.read_table(input.clusters)
-        klust = klust[klust['chrom'].isin(chromosomes)].copy()
-        bins["cluster"] = klust[f'kmeans_sm{n_clusters}']
+                        if track_name not in bins.columns:
+                            uid = meta["ID"].get(track_name, track_name)
+                            bins[track_name] = db[uid][:]
+        bins = bins[bins['chrom'].isin(chromosomes)].copy()
 
         plot_scatters(
             eigvecs,

@@ -87,6 +87,7 @@ heatmap_groups:
 
 scatter_groups:
   group1:
+    - cluster
     - centel_abs
     - GC
     - H2AK5ac
