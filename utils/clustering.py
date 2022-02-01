@@ -80,7 +80,7 @@ def relabel_clusters(labels, n_clusters, sorting_tracks, sort_key):
         df
         .sort_values(
             ['cluster_relabeled', 'centel_abs'],
-            ascending={'label': True, 'centel_abs': True}
+            ascending=[True, True]
         )
         .index
         .values

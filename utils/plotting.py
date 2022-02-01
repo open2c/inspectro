@@ -1,3 +1,6 @@
+import numpy as np
+import pandas as pd
+from cooltools.lib import numutils, runlength
 import matplotlib.pyplot as plt
 import seaborn as sns
 from mpl_toolkits.axes_grid1 import ImageGrid
@@ -34,7 +37,7 @@ def plot_heatmap(
     options_default=None
 ):
     if options_default is None:
-        options_default = = {
+        options_default = {
             'cmap': 'Reds',
             'vmin': 0,
         }
@@ -72,10 +75,10 @@ def plot_heatmap(
     ax.set_aspect('auto')
     ax.xaxis.set_visible(False)
     ax.set_yticks(np.arange(E.shape[0]))
-    ax.set_xlim(-0.5, E.shape[0] - 0.5)
-    ax.set_ylim(E.shape[1] - 0.5, -0.5)
+    ax.set_xlim(-0.5, E.shape[1] - 0.5)
+    ax.set_ylim(E.shape[0] - 0.5, -0.5)
     ax.set_yticklabels([f'E{i}' for i in range(1, E.shape[0] + 1)])
-    plt.vlines(lines, 0-0.5, E.shape[0]-0.5, lw=1, color='k')
+    plt.vlines(lines, -0.5, E.shape[1]-0.5, lw=1, color='k')
     # plt.colorbar(im)
     level = 1
 
@@ -84,8 +87,24 @@ def plot_heatmap(
         for i, track_name in enumerate(blocks[block_name], level):
             track_conf = trackconfs[track_name]
             ax = plt.subplot(gs[i], sharex=ax1)
-
             x = bins[track_name].values[idx]
+
+            track_conf = trackconfs[track_name]
+            track_type = track_conf.get('type', 'scalar')
+            kwargs = track_conf.get('options', {})
+
+            kwargs.setdefault('cmap',
+                'RdBu_r' if track_type == 'divergent' else 'Reds'
+            )
+            kwargs.setdefault('vmin', 0)
+            if 'vmax' not in kwargs:
+                vopt = np.percentile(np.max(np.abs(x)), 90)
+                if track_type == 'divergent':
+                    kwargs['vmin'] = -vopt
+                else:
+                    kwargs['vmin'] = 0
+                kwargs['vmax'] = vopt
+
             X = numutils.coarsen(
                 np.nanmean,
                 np.array([x]),
@@ -97,7 +116,7 @@ def plot_heatmap(
                 rasterized=True,
                 extent=extent,
                 origin='lower',
-                **track_conf.get("options", options_default)
+                **kwargs
             )
             ax.set_aspect('auto')
             ax.xaxis.set_visible(False)
@@ -198,11 +217,11 @@ def plot_scatters(eigs, bins, trackconfs, panels):
                 kwargs['ax'] = ax
                 kwargs.setdefault('norm', 'linear')
                 kwargs.setdefault('cmap',
-                    'coolwarm' if track_type == 'divergent' else 'Oranges'
+                    'RdBu_r' if track_type == 'divergent' else 'Oranges'
                 )
                 kwargs.setdefault('vmin', 0)
                 if 'vmax' not in kwargs:
-                    vopt = min(np.percentile(np.max(np.abs(x)), 95), 4)
+                    vopt = np.percentile(np.max(np.abs(df['z'])), 90)
                     if track_type == 'divergent':
                         kwargs['vmin'] = -vopt
                     else:

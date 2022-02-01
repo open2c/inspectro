@@ -1,20 +1,18 @@
 import matplotlib as mpl
 mpl.use("Agg")
 import matplotlib.pyplot as plt
-from functools import partial
-import glob
-import tempfile
-import pathlib
-from urllib.parse import urlparse
 
-from cooltools.lib import numutils, runlength
+from functools import partial
+import os.path as op
+import pathlib
+
 from loky import get_reusable_executor
 from tqdm import tqdm
 import bioframe
 import cooler
+import h5py
 import numpy as np
 import pandas as pd
-import h5py
 
 from utils.common import (
     make_chromarms, fetch_binned, assign_arms, assign_centel
@@ -22,11 +20,12 @@ from utils.common import (
 from utils.eigdecomp import eig_trans
 from utils.clustering import kmeans_sm, relabel_clusters
 from utils.df2multivec import to_multivec
+from utils.plotting import plot_spectrum, plot_heatmap, plot_scatters
 
 
 shell.prefix("set -euxo pipefail; ")
 configfile: "config.yaml"
-workdir: config['project_folder']
+workdir: "results/"
 
 
 assembly = config["assembly"]["name"]
@@ -43,15 +42,15 @@ n_eigs_heatmap = 10
 
 
 rule default:
-    input: 
+    input:
         [
-            f"{{}}.{assembly}.{binsize}.E0-E{n_eigs}.kmeans_sm.tsv".format(sample)
+            f"{sample}.{binsize}.E1-E{n_eigs}.kmeans_sm.tsv"
             for sample in samples
         ] + [
-            f"figs/{{}}.{assembly}.{binsize}.E0-E{n_eigs}.kmeans_sm8.heatmap.pdf".format(sample)
+            f"figs/{sample}.{binsize}.E1-E{n_eigs}.kmeans_sm8.heatmap.pdf"
             for sample in samples
         ] + [
-            f"figs/{{}}.{assembly}.{binsize}.E0-E{n_eigs}.kmeans_sm8.scatters.pdf".format(sample)
+            f"figs/{sample}.{binsize}.E1-E{n_eigs}.kmeans_sm8.scatters.pdf"
             for sample in samples
         ]
 
@@ -78,8 +77,8 @@ rule make_bintable:
             arms = make_chromarms(CHROMSIZES, mids, binsize)
         arms.to_csv(
             output.chromarms,
-            sep='\t', 
-            index=False, 
+            sep='\t',
+            index=False,
             header=False
         )
 
@@ -110,7 +109,7 @@ rule eigdecomp:
     output:
         eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvals.pq",
         eigvecs = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvecs.pq",
-        eig_pdf = f"figs/{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvals.pdf",
+    threads: workflow.cores
     params:
         sample = "{sample}",
     run:
@@ -137,8 +136,8 @@ rule eigdecomp:
             )
             ref_track = ref_track[ref_track['chrom'].isin(chromosomes)]
 
-        path = config["samples"][sample]["cooler_path"]
-        clr = cooler.Cooler(path + f'::resolutions/{binsize}')
+        path = config["samples"][sample]["cooler_path"].strip()
+        clr = cooler.Cooler(f'{path}::resolutions/{binsize}')
 
         partition = np.r_[
             [clr.offset(chrom) for chrom in chromosomes],
@@ -158,13 +157,22 @@ rule eigdecomp:
         eigval_df.to_parquet(output.eigvals)
         eigvec_df.to_parquet(output.eigvecs)
 
+
+rule plot_spectrum:
+    input:
+        eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvals.pq"
+    output:
+        eig_pdf = f"figs/{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvals.pdf"
+    params:
+        sample = "{sample}"
+    run:
         # Plot the spectrum
-        n_eigs_display = min(32, n_eigs)
+        eigval_df = pd.read_parquet(input.eigvals)
         plot_spectrum(
             eigval_df,
-            n_eigs_display,
-            f"{sample}.{binsize}",
-            output.eig_pdf
+            n_eigs_display=min(32, n_eigs),
+            title=f"{params.sample}.{binsize}",
+            outpath=output.eig_pdf
         )
         plt.savefig(output.eig_pdf)
 
@@ -176,10 +184,10 @@ rule make_multivec:
     output:
         multivec = f"{{sample}}.{binsize}.E0-E{n_eigs_multivec}.trans.eigvecs.mv5"
     run:
-        eigvals = pd.read_parquet(input.eigvals)
+        eigvals = pd.read_parquet(input.eigvals).set_index('eig')['val']
         eigvecs = pd.read_parquet(input.eigvecs)
 
-        sqrt_lam = np.sqrt(np.abs(eigvals.set_index('eig')['val'].values))
+        sqrt_lam = np.sqrt(np.abs(eigvals.to_numpy()))
         eigvecs.loc[:, 'E0':] = (
             eigvecs.loc[:, 'E0':] * sqrt_lam[np.newaxis, :]
         )
@@ -198,7 +206,7 @@ rule clustering:
         eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvals.pq",
         eigvecs = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvecs.pq",
     output:
-        clusters = f"{{sample}}.{binsize}.E0-E{n_eigs}.kmeans_sm.tsv"
+        clusters = f"{{sample}}.{binsize}.E1-E{n_eigs}.kmeans_sm.tsv"
     threads: 32
     run:
         chromosomes = CHROMOSOMES_FOR_CLUSTERING
@@ -219,7 +227,7 @@ rule clustering:
         sorting_tracks = sorting_tracks[sorting_tracks['chrom'].isin(chromosomes)]
 
         out = eigvecs[['chrom', 'start', 'end']].copy()
- 
+
         for n_clusters in n_clusters_list:
 
             colname = f'kmeans_sm{n_clusters}'
@@ -245,14 +253,16 @@ rule clustering:
 
 
 rule make_track_db:
+    input:
+        bins = f"{assembly}.bins.gc.{binsize}.pq"
     output:
         track_db = f"tracks.{assembly}.{binsize}.h5"
     threads: 32
     run:
         h5opts = dict(compression='gzip', compression_opts=6)
 
-        bins = bioframe.binnify(CHROMSIZES, binsize)
-        if not os.exists(output.track_db):
+        bins = pd.read_parquet(input.bins)
+        if not op.exists(output.track_db):
             with h5py.File(output.track_db, 'w') as f:
                 for col in [
                     'chrom',
@@ -272,15 +282,19 @@ rule make_track_db:
                 if row['ID'] in f:
                     continue
 
-                if row['FileFormat'] == 'bigWig':
+                if row['FileFormat'].lower() == 'bigwig':
                     with get_reusable_executor(26) as pool:
                         acc = row['ID']
                         x = fetch_binned(
-                            paths[acc], CHROMSIZES, CHROMOSOMES, binsize, pool.map
+                            paths[acc],
+                            CHROMSIZES,
+                            CHROMOSOMES,
+                            binsize,
+                            pool.map
                         )
                         f.create_dataset(acc, data=x, **h5opts)
 
-                elif row['FileFormat'] == 'bedGraph':
+                elif row['FileFormat'].lower() == 'bedgraph':
                     acc = row['ID']
                     df = bioframe.read_table(paths[acc], schema='bedGraph')
                     ov = bioframe.overlap(
@@ -306,35 +320,37 @@ rule make_track_db:
 
 rule heatmap:
     input:
-        eigvals = f"{{sample}}.{binsize}.E1-E{n_eigs}.trans.eigvals.pq",
-        eigvecs = f"{{sample}}.{binsize}.E1-E{n_eigs}.trans.eigvecs.pq",
+        eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvals.pq",
+        eigvecs = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvecs.pq",
         clusters = f"{{sample}}.{binsize}.E1-E{n_eigs}.kmeans_sm.tsv",
-        track_db = f"tracks.{assembly}.{binsize}.h5",
+        # track_db = f"tracks.{assembly}.{binsize}.h5",
         bins = f"{assembly}.bins.gc.{binsize}.pq",
     output:
         heatmap_pdf = f"figs/{{sample}}.{binsize}.E1-E{n_eigs}.kmeans_sm{{n_clusters}}.heatmap.pdf"
     params:
-        n_clusters = int("{n_clusters}"),
+        n_clusters = lambda wc: int(wc.n_clusters),
     run:
         n_clusters = params.n_clusters
         chromosomes = CHROMOSOMES_FOR_CLUSTERING
         sort_by = 'centel'
         norm = 'sqrt'
 
-        eigs = pd.read_parquet(input.eigvecs)
-        eigvals = pd.read_parquet(input.eigvals).set_index('eig')
-        sqrt_lam = np.sqrt(np.abs(eigvals.loc['E1':f'E{n_eigs_heatmap}'].values))
+        eigvecs = pd.read_parquet(input.eigvecs)
+        eigvals = pd.read_parquet(input.eigvals).set_index('eig')['val']
+        sqrt_lam = np.sqrt(np.abs(eigvals.loc['E1':f'E{n_eigs_heatmap}'].to_numpy()))
         if norm == 'sqrt':
-            eigs.loc[:, 'E1':f'E{n_eigs_heatmap}'] *= sqrt_lam[np.newaxis, :]
-        eigs = eigs[eigs['chrom'].isin(chromosomes)].copy()
+            eigvecs.loc[:, 'E1':f'E{n_eigs_heatmap}'] *= sqrt_lam[np.newaxis, :]
+        eigvecs = eigvecs[eigvecs['chrom'].isin(chromosomes)].copy()
 
         bins = pd.read_parquet(input.bins)
-        meta = pd.read_table(config['bigwig_metadata_path']).set_index("Name")
-        with h5py.File(input.track_db, 'r') as db:
-            for group in config["heatmap_groups"].values():
-                for track_name in group:
-                    uid = meta[track_name].get("ID", track_name)
-                    bins[track_name] = db[uid][:]
+        track_db_path = f"tracks.{assembly}.{binsize}.h5"
+        if op.exists(track_db_path):
+            meta = pd.read_table(config['bigwig_metadata_path']).set_index("Name")
+            with h5py.File(track_db_path, 'r') as db:
+                for group in config["heatmap_groups"].values():
+                    for track_name in group:
+                        uid = meta["ID"].get(track_name, track_name)
+                        bins[track_name] = db[uid][:]
         bins = bins[bins['chrom'].isin(chromosomes)]
         klust = pd.read_table(input.clusters)
         klust = klust[klust['chrom'].isin(chromosomes)].copy()
@@ -349,7 +365,7 @@ rule heatmap:
 
         plot_heatmap(
             idx,
-            eigs['E1':f'E{n_eigs_heatmap}'],
+            eigvecs.loc[:, 'E1':f'E{n_eigs_heatmap}'],
             bins,
             trackconfs=config["tracks"],
             blocks=config["heatmap_groups"],
@@ -360,37 +376,43 @@ rule heatmap:
 
 rule scatters:
     input:
-        eigvals = f"{{sample}}.{binsize}.E1-E{n_eigs}.trans.eigvals.pq",
-        eigvecs = f"{{sample}}.{binsize}.E1-E{n_eigs}.trans.eigvecs.pq",
+        eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvals.pq",
+        eigvecs = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvecs.pq",
         clusters = f"{{sample}}.{binsize}.E1-E{n_eigs}.kmeans_sm.tsv",
-        track_db = f"tracks.{assembly}.{binsize}.h5",
+        # track_db = f"tracks.{assembly}.{binsize}.h5",
         bins = f"{assembly}.bins.gc.{binsize}.pq",
     output:
-        scatter_pdf = f"figs/{{sample}}.{binsize}.E0-E{n_eigs}.kmeans_sm{{n_clusters}}.scatters.pdf"
+        scatter_pdf = f"figs/{{sample}}.{binsize}.E1-E{n_eigs}.kmeans_sm{{n_clusters}}.scatters.pdf"
     params:
-        n_clusters = int("{n_clusters}"),
+        n_clusters = lambda wc: wc.n_clusters
     run:
         n_clusters = params.n_clusters
         chromosomes = CHROMOSOMES_FOR_CLUSTERING
 
-        eigs = pd.read_parquet(input.eigvecs)
-        eigs = eigs[eigs['chrom'].isin(chromosomes)].copy()
-        eigvals = pd.read_parquet(input.eigvals).set_index('eig')
+        eigvecs = pd.read_parquet(input.eigvecs)
+        eigvecs = eigvecs[eigvecs['chrom'].isin(chromosomes)].copy()
+        eigvals = pd.read_parquet(input.eigvals).set_index('eig')['val']
+        # sqrt_lam = np.sqrt(np.abs(eigvals.to_numpy()))
+        # eigvecs.loc[:, 'E0':] = (
+        #     eigvecs.loc[:, 'E0':] * sqrt_lam[np.newaxis, :]
+        # )
 
         bins = pd.read_parquet(input.bins)
-        meta = pd.read_table(config['bigwig_metadata_path']).set_index("Name")
-        with h5py.File(input.track_db, 'r') as db:
-            for group in config["scatter_groups"].values():
-                for track_name in group:
-                    uid = meta[track_name].get("ID", track_name)
-                    bins[track_name] = db[uid][:]
+        track_db_path = f"tracks.{assembly}.{binsize}.h5"
+        if op.exists(track_db_path):
+            meta = pd.read_table(config['bigwig_metadata_path']).set_index("Name")
+            with h5py.File(track_db_path, 'r') as db:
+                for group in config["scatter_groups"].values():
+                    for track_name in group:
+                        uid = meta["ID"].get(track_name, track_name)
+                        bins[track_name] = db[uid][:]
         bins = bins[bins['chrom'].isin(chromosomes)]
         klust = pd.read_table(input.clusters)
         klust = klust[klust['chrom'].isin(chromosomes)].copy()
         bins["cluster"] = klust[f'kmeans_sm{n_clusters}']
 
         plot_scatters(
-            eigs,
+            eigvecs,
             bins,
             trackconfs=config["tracks"],
             panels=config["scatter_groups"],

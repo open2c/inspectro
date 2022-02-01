@@ -149,7 +149,6 @@ def assign_centel(group, arms):
 
 
 def _fetch_binned_chrom(path, chromsizes, binsize, chrom):
-    print(chrom)
     clen_rounded = int(np.ceil(chromsizes[chrom] / binsize)) * binsize
     try:
         f = bbi.open(path)

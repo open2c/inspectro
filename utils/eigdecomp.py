@@ -268,6 +268,6 @@ def eig_trans(
     })
     eigvec_table = bins.copy()
     for i in range(n_eigs + 1):
-        eigvec_table["E{}".format(i)] = eigvecs[:, i]
+        eigvec_table["E{}".format(i)] = eigvecs[:, i].copy()
 
     return eigval_table, eigvec_table
