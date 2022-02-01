@@ -126,15 +126,13 @@ rule eigdecomp:
             blacklist = pd.read_csv(
                 config["samples"][sample]["blacklist_path"],
                 sep='\t',
-                names=['chrom', 'start', 'end', 'is_bad']
+                names=['chrom', 'start', 'end']
             )
-            ref_track = pd.merge(
-                ref_track,
-                blacklist,
-                on=['chrom', 'start', 'end'],
-                how='outer'
+            ref_track = (
+                bioframe.count_overlaps(ref_track, blacklist)
+                .rename(columns={'count': 'is_bad'})
             )
-            ref_track = ref_track[ref_track['chrom'].isin(chromosomes)]
+        ref_track = ref_track[ref_track['chrom'].isin(chromosomes)]
 
         path = config["samples"][sample]["cooler_path"].strip()
         clr = cooler.Cooler(f'{path}::resolutions/{binsize}')
