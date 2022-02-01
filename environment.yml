@@ -17,7 +17,7 @@ dependencies:
     - ipdb
     - jupyterlab
     - loky
-    - matplotlib
+    - matplotlib==3.4.*
     - pandas
     - pyarrow
     - pybbi
