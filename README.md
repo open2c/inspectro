@@ -1,4 +1,4 @@
-# Inspectral
+# Inspectro
 
 Spectral decomposition for characterizing long-range interaction profiles in Hi-C maps. 
 
@@ -6,6 +6,12 @@ Snakemake workflow for the unsupervised method presented in [Spracklin, Abdennur
 
 
 ### Steps
+0. Set up your environment with [conda](https://docs.conda.io/en/latest/miniconda.html) or [mamba](https://github.com/mamba-org/mamba):
+
+```sh
+conda env create -n spec -f environment.yml
+conda activate spec
+```
 
 1. Place supplementary bigwig file information in `config/track_metadata.tsv` to include in graphical outputs. Must be tab-delimited, including header. Must have columns:
 
