@@ -67,12 +67,10 @@ def assign_centel(group, arms):
     if group.name.endswith('p'):
         arm_len = arms.loc[this_arm, 'end']
         return 1 - (group['end'] / arm_len)
-    elif group.name.endswith('q'):
+    else:  # q-arm or acrocentric
         arm_start = arms.loc[this_arm, 'start']
         arm_len = arms.loc[this_arm, 'end'] - arm_start
         return (group['end'] - arm_start) / arm_len
-    else:
-        return group.assign(dummy=np.nan)['dummy']
 
 
 def _fetch_binned_chrom(path, chromsizes, binsize, chrom):
