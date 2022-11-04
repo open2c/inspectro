@@ -18,7 +18,7 @@ def _extract_eigs(
 
     # Decide whether to use unit normed vectors or to weight them by sqrt(|lambda_i|)
     if weight_by_eigval:
-        eigvecs.loc[:, 'E0':'E128'] *= np.sqrt(np.abs(eigvals.T.values))
+        eigvecs.loc[:, 'E0':] *= np.sqrt(np.abs(eigvals.T.values))
 
     # Do the k-clustering on top k eigenvectors, unless overriden to use more or fewer
     if n_components is None:
