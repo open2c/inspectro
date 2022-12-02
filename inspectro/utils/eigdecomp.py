@@ -276,7 +276,7 @@ def eig_trans(
     return eigval_table, eigvec_table
 
 
-def _normalized_affinity_matrix_cis(A, perc_top, perc_bottom, ignore_diags=2):
+def _normalized_affinity_matrix_from_cis(A, perc_top, perc_bottom, ignore_diags=2):
     """
     Produce an affinity matrix based on cis data.
 
@@ -418,11 +418,13 @@ def eig_cis(
 
     """
 
+    chomosomes_bins = np.unique(bins.chrom)
+
     # Verify or create view_df:
     # get chromosomes from cooler, if view_df not specified:
     if view_df is None:
         view_df = bioframe.make_viewframe(
-            [(chrom, 0, clr.chromsizes[chrom]) for chrom in clr.chromnames]
+            [(chrom, 0, clr.chromsizes[chrom]) for chrom in clr.chromnames and chrom in chomosomes_bins]
         )
     else:
         # appropriate viewframe checks:
@@ -449,10 +451,9 @@ def eig_cis(
         eigvec_table[ev_col] = np.nan
 
     # Prepare output table with eigenvalues
-    eigvals_table = view_df.copy()
-    eigval_columns = [f"eigval{i}" for i in range(n_eigs+1)]
-    for eval_col in eigval_columns:
-        eigvals_table[eval_col] = np.nan
+    eigval_table = pd.DataFrame({
+        'eig': eigvec_columns
+    })
 
     def _each(region):
         """
@@ -468,13 +469,6 @@ def eig_cis(
         _region, eigvals, eigvecs -> ndarrays
             array of eigenvalues and an array eigenvectors
         """
-
-        # Input checks
-        if phasing_track_col:
-            if phasing_track_col not in bins:
-                raise ValueError(
-                    'No column "{}" in the bin table'.format(phasing_track_col)
-                )
 
         _region = region[:3]  # take only (chrom, start, end)
         A = clr.matrix(balance=balance).fetch(_region)
@@ -519,7 +513,7 @@ def eig_cis(
         if phasing_track is not None:
             eigvecs = _orient_eigs(eigvecs, phasing_track, corr_metric)
 
-        return _region, eigvals, eigvecs
+        return region[:4], eigvals, eigvecs
 
     # Eigendecompose matrix per region
     # Output assumes that the order of results matches regions
@@ -528,12 +522,62 @@ def eig_cis(
     # Go through eigendecomposition results and fill in
     # Output table eigvec_table and eigvals_table
     for _region, _eigvals, _eigvecs in results:
+
+        if len(_region)==3:
+            region_name = f'{_region[0]}:{_region[1]}-{_region[2]}'
+        else:
+            region_name = _region[3]
+
         idx = bioframe.select(eigvec_table, _region).index.values
-        eigvec_table.loc[idx, 'name'] = f'{_region[0]}:{_region[1]}-{_region[2]}'
+        eigvec_table.loc[idx, 'name'] = region_name
         eigvec_table.loc[idx, eigvec_columns] = _eigvecs
-        idx = bioframe.select(eigvals_table, _region).index.values
-        eigvals_table.loc[idx, eigval_columns] = _eigvals
-        eigvals_table.loc[idx, 'name'] = f'{_region[0]}:{_region[1]}-{_region[2]}'
 
-    return eigvals_table, eigvec_table
+        eigval_table.loc[:, region_name] = _eigvals
 
+    return eigval_table, eigvec_table
+
+
+
+def projection(A, eigs, n_eigs=None):
+    """
+    Project matrix A to the eigenvectors eigs.
+
+    A : Input matrix
+    eigs : eigenvector DataFrame
+    n_eigs : limiting number of eigenvectors
+
+    Returns
+    -------
+    proj_table -> DataFrame (n, n_eigs + 1)
+        Table of projected values (as columns).
+
+    """
+
+    # Input check:
+    n_bins = A.shape[0]
+    if n_bins != len(eigs):
+        raise ValueError(f"Matrix and eigs shape mismatch: {n_bins} {len(eigs)}")
+
+    # Filter out missing data:
+    E = eigs.loc[:, 'E0':f'E{n_eigs}'].to_numpy().astype(np.float64)
+    mask = (
+            (np.sum(np.abs(A), axis=0) != 0) &
+            (np.sum(np.isnan(E), axis=1) == 0)
+    )
+    A_collapsed = A[mask, :][:, mask].astype(float, copy=True)
+    E_collapsed = E[mask, :]
+
+    # Project:
+    proj = np.full((n_bins, n_eigs + 1), np.nan)
+    result = []
+    for i in range(n_eigs + 1):
+        result.append(np.dot(A_collapsed, E_collapsed[:, i][:, np.newaxis]))
+    proj[mask, :] = np.hstack(result)
+
+    # Create projection table:
+    proj_table = eigs.loc[:, ['chrom', 'start', 'end']].copy()
+    for i in range(n_eigs + 1):
+        proj_table["E{}".format(i)] = proj[:, i].copy()
+        proj_table["E{}".format(i)] /= np.linalg.norm(proj_table["E{}".format(i)].dropna())
+
+    return proj_table
