@@ -9,8 +9,8 @@ dependencies:
   - bioconda::ucsc-bedgraphtobigwig
   - bioconda::ucsc-bigwigtobedgraph
   - pip:
-    - bioframe==0.2.*
-    - cooltools==0.4.*
+    - bioframe==0.3.*
+    - cooltools==0.5.*
     - cooler
     - datashader
     - ipympl
@@ -27,3 +27,4 @@ dependencies:
     - seaborn
     - snakemake
     - tqdm
+    - -e ./

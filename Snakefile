@@ -14,6 +14,7 @@ import h5py
 import numpy as np
 import pandas as pd
 
+from inspectro import utils
 from utils.common import (
     make_chromarms, fetch_binned, assign_arms, assign_centel
 )
@@ -33,12 +34,18 @@ CHROMSIZES = bioframe.fetch_chromsizes(assembly)
 CHROMOSOMES = list(CHROMSIZES[:'chrY'].index)
 CHROMOSOMES_FOR_CLUSTERING = list(CHROMSIZES[:'chr22'].index)
 
+try:
+    CENTROMERES = bioframe.fetch_centromeres(assembly)
+except ValueError:
+    CENTROMERES = None
+
 samples = list(config["samples"].keys())
 binsize = config["params"]["binsize"]
 n_clusters_list = config["params"]["n_clusters"]
 n_eigs = config["params"]["n_eigs"]
 n_eigs_multivec = 32
 n_eigs_heatmap = 10
+decomp_mode = config["params"]["decomp_mode"]
 
 
 def generate_targets(wc):
@@ -70,11 +77,7 @@ rule make_bintable:
         chromarms = f"{assembly}.chromarms.{binsize}.bed",
         bins = f"{assembly}.bins.gc.{binsize}.pq",
     run:
-        try:
-            centros = bioframe.fetch_centromeres(assembly)
-        except ValueError:
-            centros = None
-        if centros is None or len(centros) == 0:
+        if CENTROMERES is None or len(CENTROMERES) == 0:
             mids = {chrom: 0 for chrom in CHROMOSOMES}
             arms = pd.DataFrame({
                 "chrom": CHROMSIZES.index,
@@ -83,7 +86,7 @@ rule make_bintable:
                 "name": CHROMSIZES.index,
             })
         else:
-            mids = centros.set_index('chrom')['mid']
+            mids = CENTROMERES.set_index('chrom')['mid']
             arms = make_chromarms(CHROMSIZES, mids, binsize)
         arms.to_csv(
             output.chromarms,
@@ -147,19 +150,40 @@ rule eigdecomp:
         path = config["samples"][sample]["cooler_path"]
         clr = cooler.Cooler(f'{path}::resolutions/{binsize}')
 
-        partition = np.r_[
-            [clr.offset(chrom) for chrom in chromosomes],
-            clr.extent(chromosomes[-1])[1]
-        ]
+        if decomp_mode=="trans":
+            partition = np.r_[
+                [clr.offset(chrom) for chrom in chromosomes],
+                clr.extent(chromosomes[-1])[1]
+            ]
 
-        eigval_df, eigvec_df = eig_trans(
-            clr=clr,
-            bins=ref_track,
-            phasing_track_col="GC",
-            n_eigs=n_eigs,
-            partition=partition,
-            corr_metric=None,
-        )
+            eigval_df, eigvec_df = eig_trans(
+                clr=clr,
+                bins=ref_track,
+                phasing_track_col="GC",
+                n_eigs=n_eigs,
+                partition=partition,
+                corr_metric=None,
+            )
+
+        elif decomp_mode=="cis":
+            viewframe_path = config["assembly"].get("viewframe_cis", None)
+            if viewframe_path is None:
+                CHROMARMS = bioframe.make_chromarms(CHROMSIZES,CENTROMERES)
+                viewframe = CHROMARMS.query(f"(chrom in {clr.chromnames}) and (chrom in {CHROMOSOMES})").reset_index(drop=True)
+            else:
+                viewframe = bioframe.load_table(viewframe_path)
+
+            eigval_df, eigvec_df = eig_cis(
+                clr=clr,
+                bins=ref_track,
+                phasing_track_col="GC",
+                n_eigs=n_eigs,
+                corr_metric=None,
+                ignore_diags=None, # will be inferred from cooler
+                view_df=viewframe
+            )
+        else:
+
 
         # Output
         eigval_df.to_parquet(output.eigvals)

@@ -14,3 +14,6 @@ __pycache__
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# pip-generated files:
+*.egg-info/
