@@ -4,7 +4,7 @@ import scipy.sparse
 import scipy.stats
 
 from cooltools.lib import numutils
-from cooltools.eigdecomp import _filter_heatmap, _fake_cis
+from cooltools.api.eigdecomp import _filter_heatmap, _fake_cis
 
 import bioframe
 import cooler
