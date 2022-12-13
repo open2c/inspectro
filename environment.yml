@@ -9,7 +9,11 @@ dependencies:
   - bioconda::ucsc-bedgraphtobigwig
   - bioconda::ucsc-bigwigtobedgraph
   - pip:
+<<<<<<< HEAD
     - bioframe==0.2.*
+=======
+    - bioframe==0.3.*
+>>>>>>> agalitsyna/master
     - cooltools==0.5.*
     - cooler
     - datashader
@@ -27,3 +31,4 @@ dependencies:
     - seaborn
     - snakemake
     - tqdm
+    - -e ./

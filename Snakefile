@@ -14,13 +14,14 @@ import h5py
 import numpy as np
 import pandas as pd
 
-from utils.common import (
+from inspectro import utils
+from inspectro.utils.common import (
     make_chromarms, fetch_binned, assign_arms, assign_centel
 )
-from utils.eigdecomp import eig_trans
-from utils.clustering import kmeans_sm, relabel_clusters
-from utils.df2multivec import to_multivec
-from utils.plotting import plot_spectrum, plot_heatmap, plot_scatters
+from inspectro.utils.eigdecomp import eig_trans, eig_cis
+from inspectro.utils.clustering import kmeans_sm, relabel_clusters
+from inspectro.utils.df2multivec import to_multivec
+from inspectro.utils.plotting import plot_spectrum, plot_heatmap, plot_scatters
 
 
 shell.prefix("set -euxo pipefail; ")
@@ -33,31 +34,47 @@ CHROMSIZES = bioframe.fetch_chromsizes(assembly)
 CHROMOSOMES = list(CHROMSIZES[:'chrY'].index)
 CHROMOSOMES_FOR_CLUSTERING = list(CHROMSIZES[:'chr22'].index)
 
+try:
+    CENTROMERES = bioframe.fetch_centromeres(assembly)
+except ValueError:
+    CENTROMERES = None
+
 samples = list(config["samples"].keys())
 binsize = config["params"]["binsize"]
 n_clusters_list = config["params"]["n_clusters"]
 n_eigs = config["params"]["n_eigs"]
 n_eigs_multivec = 32
 n_eigs_heatmap = 10
+decomp_mode = config["params"]["decomp_mode"]
 
 
 def generate_targets(wc):
+
     targets = []
     for sample in samples:
+        # Do not write clusters and plots for cis
+        # if decomp_mode == "cis":
         targets.append(
-            f"{sample}.{binsize}.E1-E{n_eigs}.kmeans_sm.tsv"
+            f"{sample}.{binsize}.E0-E{n_eigs}.{decomp_mode}.eigvals.pq"
         )
         targets.append(
-            f"figs/{sample}.{binsize}.E0-E{n_eigs}.trans.eigvals.pdf"
+            f"{sample}.{binsize}.E0-E{n_eigs}.{decomp_mode}.eigvecs.pq"
         )
-        targets.extend(expand(
-            f"figs/{sample}.{binsize}.E1-E{n_eigs}.kmeans_sm{{n}}.heatmap.pdf",
-            n=n_clusters_list,
-        ))
-        targets.extend(expand(
-            f"figs/{sample}.{binsize}.E1-E{n_eigs}.kmeans_sm{{n}}.scatters.pdf",
-            n=[n for n in n_clusters_list if n < 20],
-        ))
+        # else:
+        #     targets.append(
+        #         f"{sample}.{binsize}.E1-E{n_eigs}.kmeans_sm.tsv"
+        #     )
+        #     targets.append(
+        #         f"figs/{sample}.{binsize}.E0-E{n_eigs}.{decomp_mode}.eigvals.pdf"
+        #     )
+        #     targets.extend(expand(
+        #         f"figs/{sample}.{binsize}.E1-E{n_eigs}.kmeans_sm{{n}}.heatmap.pdf",
+        #         n=n_clusters_list,
+        #     ))
+        #     targets.extend(expand(
+        #         f"figs/{sample}.{binsize}.E1-E{n_eigs}.kmeans_sm{{n}}.scatters.pdf",
+        #         n=[n for n in n_clusters_list if n < 20],
+        #     ))
     return targets
 
 
@@ -70,11 +87,7 @@ rule make_bintable:
         chromarms = f"{assembly}.chromarms.{binsize}.bed",
         bins = f"{assembly}.bins.gc.{binsize}.pq",
     run:
-        try:
-            centros = bioframe.fetch_centromeres(assembly)
-        except ValueError:
-            centros = None
-        if centros is None or len(centros) == 0:
+        if CENTROMERES is None or len(CENTROMERES) == 0:
             mids = {chrom: 0 for chrom in CHROMOSOMES}
             arms = pd.DataFrame({
                 "chrom": CHROMSIZES.index,
@@ -83,7 +96,7 @@ rule make_bintable:
                 "name": CHROMSIZES.index,
             })
         else:
-            mids = centros.set_index('chrom')['mid']
+            mids = CENTROMERES.set_index('chrom')['mid']
             arms = make_chromarms(CHROMSIZES, mids, binsize)
         arms.to_csv(
             output.chromarms,
@@ -117,8 +130,8 @@ rule eigdecomp:
     input:
         bins = f"{assembly}.bins.gc.{binsize}.pq"
     output:
-        eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvals.pq",
-        eigvecs = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvecs.pq",
+        eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.{decomp_mode}.eigvals.pq",
+        eigvecs = f"{{sample}}.{binsize}.E0-E{n_eigs}.{decomp_mode}.eigvecs.pq",
     threads: workflow.cores
     params:
         sample = "{sample}",
@@ -147,19 +160,40 @@ rule eigdecomp:
         path = config["samples"][sample]["cooler_path"]
         clr = cooler.Cooler(f'{path}::resolutions/{binsize}')
 
-        partition = np.r_[
-            [clr.offset(chrom) for chrom in chromosomes],
-            clr.extent(chromosomes[-1])[1]
-        ]
+        if decomp_mode=="trans":
+            partition = np.r_[
+                [clr.offset(chrom) for chrom in chromosomes],
+                clr.extent(chromosomes[-1])[1]
+            ]
 
-        eigval_df, eigvec_df = eig_trans(
-            clr=clr,
-            bins=ref_track,
-            phasing_track_col="GC",
-            n_eigs=n_eigs,
-            partition=partition,
-            corr_metric=None,
-        )
+            eigval_df, eigvec_df = eig_trans(
+                clr=clr,
+                bins=ref_track,
+                phasing_track_col="GC",
+                n_eigs=n_eigs,
+                partition=partition,
+                corr_metric=None,
+            )
+
+        elif decomp_mode=="cis":
+            viewframe_path = config["assembly"].get("viewframe_cis", None)
+            if viewframe_path is None:
+                CHROMARMS = bioframe.make_chromarms(CHROMSIZES, CENTROMERES)
+                viewframe = CHROMARMS.query(f"(chrom in {chromosomes})").reset_index(drop=True)
+            else:
+                viewframe = bioframe.load_table(viewframe_path)
+
+            eigval_df, eigvec_df = eig_cis(
+                clr=clr,
+                bins=ref_track,
+                phasing_track_col="GC",
+                n_eigs=n_eigs,
+                corr_metric=None,
+                ignore_diags=None, # will be inferred from cooler
+                view_df=viewframe
+            )
+        else:
+            raise ValueError(f"Mode {decomp_mode} is not implemented")
 
         # Output
         eigval_df.to_parquet(output.eigvals)
@@ -168,9 +202,9 @@ rule eigdecomp:
 
 rule plot_spectrum:
     input:
-        eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvals.pq"
+        eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.{decomp_mode}.eigvals.pq"
     output:
-        eig_pdf = f"figs/{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvals.pdf"
+        eig_pdf = f"figs/{{sample}}.{binsize}.E0-E{n_eigs}.{decomp_mode}.eigvals.pdf"
     params:
         sample = "{sample}"
     run:
@@ -187,10 +221,10 @@ rule plot_spectrum:
 
 rule make_multivec:
     input:
-        eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvals.pq",
-        eigvecs = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvecs.pq",
+        eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.{decomp_mode}.eigvals.pq",
+        eigvecs = f"{{sample}}.{binsize}.E0-E{n_eigs}.{decomp_mode}.eigvecs.pq",
     output:
-        multivec = f"{{sample}}.{binsize}.E0-E{n_eigs_multivec}.trans.eigvecs.mv5"
+        multivec = f"{{sample}}.{binsize}.E0-E{n_eigs_multivec}.{decomp_mode}.eigvecs.mv5"
     run:
         eigvals = pd.read_parquet(input.eigvals).set_index('eig')['val']
         eigvecs = pd.read_parquet(input.eigvecs)
@@ -211,8 +245,8 @@ rule make_multivec:
 rule clustering:
     input:
         bins = f"{assembly}.bins.gc.{binsize}.pq",
-        eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvals.pq",
-        eigvecs = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvecs.pq",
+        eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.{decomp_mode}.eigvals.pq",
+        eigvecs = f"{{sample}}.{binsize}.E0-E{n_eigs}.{decomp_mode}.eigvecs.pq",
     output:
         clusters = f"{{sample}}.{binsize}.E1-E{n_eigs}.kmeans_sm.tsv"
     threads: 32
@@ -328,8 +362,8 @@ rule make_track_db:
 
 rule heatmap:
     input:
-        eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvals.pq",
-        eigvecs = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvecs.pq",
+        eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.{decomp_mode}.eigvals.pq",
+        eigvecs = f"{{sample}}.{binsize}.E0-E{n_eigs}.{decomp_mode}.eigvecs.pq",
         clusters = f"{{sample}}.{binsize}.E1-E{n_eigs}.kmeans_sm.tsv",
         # track_db = f"tracks.{assembly}.{binsize}.h5",
         bins = f"{assembly}.bins.gc.{binsize}.pq",
@@ -384,8 +418,8 @@ rule heatmap:
 
 rule scatters:
     input:
-        eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvals.pq",
-        eigvecs = f"{{sample}}.{binsize}.E0-E{n_eigs}.trans.eigvecs.pq",
+        eigvals = f"{{sample}}.{binsize}.E0-E{n_eigs}.{decomp_mode}.eigvals.pq",
+        eigvecs = f"{{sample}}.{binsize}.E0-E{n_eigs}.{decomp_mode}.eigvecs.pq",
         clusters = f"{{sample}}.{binsize}.E1-E{n_eigs}.kmeans_sm.tsv",
         # track_db = f"tracks.{assembly}.{binsize}.h5",
         bins = f"{assembly}.bins.gc.{binsize}.pq",

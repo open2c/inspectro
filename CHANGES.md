@@ -11,3 +11,9 @@ Initial release.
 Date : 2022-12-12
 
 Fix numba issue by upgrading cooltools #2.
+
+## v0.2.0
+
+Date : 2022-12-12
+
+Refactor inspectro into module. #3

@@ -8,6 +8,8 @@ params:
   n_eigs: 128
   # Number of clusters K for K-means runs.
   n_clusters: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 20, 32, 64]
+  # Decomposition mode: trans or cis (beta)
+  decomp_mode: 'trans'
 
 
 #####
