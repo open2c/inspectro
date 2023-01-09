@@ -2,7 +2,18 @@
 
 Spectral decomposition for characterizing long-range interaction profiles in Hi-C maps. 
 
-Snakemake workflow for the unsupervised method presented in [Spracklin, Abdennur et al., 2021](https://www.biorxiv.org/content/10.1101/2021.08.05.455340v1).
+Snakemake workflow for the unsupervised method presented in [Spracklin, Abdennur et al., 2022](https://www.nature.com/articles/s41594-022-00892-7).
+
+```bibtex
+@article{spracklin2022diverse,
+  title={Diverse silent chromatin states modulate genome compartmentalization and loop extrusion barriers},
+  author={Spracklin, George and Abdennur, Nezar and Imakaev, Maxim and Chowdhury, Neil and Pradhan, Sriharsa and Mirny, Leonid A and Dekker, Job},
+  journal={Nature Structural \& Molecular Biology},
+  pages={1--14},
+  year={2022},
+  publisher={Nature Publishing Group}
+}
+```
 
 
 ### Steps
