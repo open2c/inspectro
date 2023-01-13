@@ -47,4 +47,4 @@ $ snakemake --cores all
 
 Versions `v0.1.*` will always follow the decomposition and clustering method as described in the NSMB paper, incorporating bug fixes and maintenance.
 
-Future versions of the pipeline may include new additions and enhancements to the original method, which will be documented.
+Future versions of the pipeline (`v0.2` and up) may include new additions and enhancements to the original method, which will be documented.
