@@ -42,3 +42,9 @@ $ snakemake make_track_db --force --cores all
 # Run the pipeline
 $ snakemake --cores all
 ```
+
+## Releases
+
+Versions `v0.1.*` will always follow the decomposition and clustering method as described in the NSMB paper, incorporating bug fixes and maintenance.
+
+Future versions of the pipeline may include new additions and enhancements to the original method, which will be documented.
