@@ -1,4 +1,4 @@
 Name	ID	Path	FileFormat
-H2AK5ac	ENCFF088RFQ	../resources/ENCFF088RFQ.bigWig	bigWig
-H2BK12ac	ENCFF080CWG	../resources/ENCFF080CWG.bigWig	bigWig
-H2BK15ac	ENCFF410AXA	../resources/ENCFF410AXA.bigWig	bigWig
+H2AK5ac	ENCFF088RFQ	/absolute_path/resources/ENCFF088RFQ.bigWig	bigWig
+H2BK12ac	ENCFF080CWG	/absolute_path/resources/ENCFF080CWG.bigWig	bigWig
+H2BK15ac	ENCFF410AXA	/absolute_path/resources/ENCFF410AXA.bigWig	bigWig

@@ -1,0 +1,12 @@
+reports:
+  "*.eigvals.pdf":
+    display: "Spectral Plot"
+  
+  "*.scatter.pdf":
+    display: "Scatter Plot"
+
+  "*.heatmap.pdf":
+    display: "Heatmap Plot"
+
+  "*.kmeans_sm.tsv":
+    display: "Clustering TSV file"

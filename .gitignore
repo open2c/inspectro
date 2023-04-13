@@ -17,3 +17,38 @@ Thumbs.db
 
 # pip-generated files:
 *.egg-info/
+
+# Log files
+*.log*
+
+# Applications
+*.app
+*.exe
+*.war
+
+# Large files
+*.mp4
+*.tiff
+*.avi
+*.flv
+*.mov
+*.wmv
+*.fa
+*.fa.fai
+*.bw
+*.mcool
+
+# nextflow
+*.command*
+*.nextflow
+results/*
+work/*
+
+# text file
+*.txt
+
+# html file
+*.html
+
+resources/*
+*.json

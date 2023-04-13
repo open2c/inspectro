@@ -1,32 +1,22 @@
 #####
 # Spectral clustering parameters
 #####
-params:
-  # Resolution of contact map to use.
-  binsize: 50000
-  # Total number of eigenvectors to compute.
-  n_eigs: 128
-  # Number of clusters K for K-means runs.
-  n_clusters: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 20, 32, 64]
-  # Decomposition mode: trans or cis (beta)
-  decomp_mode: 'trans'
+
+binsize: 50000
+# Total number of eigenvectors to compute.
+n_eigs: 128
+# Number of clusters K for K-means runs.
+n_clusters: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 20, 32, 64]
+# Decomposition mode: trans or cis (beta)
+decomp_mode: "trans"
 
 
 #####
 # Genome and Hi-C data
 #####
-assembly:
-  name: hg38
-  fasta_path: ../resources/hg38.fa
+assembly: "hg38"
 
-samples:
-  # Unique sample name
-  H9:
-    # Path to an mcool file
-    cooler_path: ../resources/4DNFIT5YVTLO.mcool
-    # Path to a BED3 file marking interchromosomal translocations and other 
-    # trans artifacts that interfere with clustering.
-    blacklist_path: ../resources/h9.blacklist.bed
+sample: "H9"
 
 
 #####

@@ -1,0 +1,36 @@
+name: inspectro
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  - cython
+  - numpy
+  - ipython
+  - bioconda::bedtools
+  - bioconda::ucsc-bedgraphtobigwig
+  - bioconda::ucsc-bigwigtobedgraph
+  - pip:
+      - bioframe==0.3.*
+      - h5py
+      - cooler
+      - cooltools
+      - datashader
+      - datashape
+      - ipympl
+      - ipdb
+      - ipy
+      - jupyterlab
+      - pandas
+      - loky
+      - matplotlib
+      - pyarrow
+      - pysam
+      - scipy
+      - seaborn
+      - tqdm
+      - pybbi
+      - scikit-learn
+prefix: /opt/install/conda
