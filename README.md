@@ -38,7 +38,7 @@ This pipeline is currently only supported to run locally. We're working on being
   ```
 
 ## Credits
-
+Tarishi Pathak, George Spracklin, Nezar Abdennur
 
 ## Citation
 
